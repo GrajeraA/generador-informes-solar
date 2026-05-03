@@ -11,7 +11,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from datetime import datetime
 
-# Colors corporatius EnergyDataGP
 COLOR_PRINCIPAL = colors.HexColor('#1A3A5C')
 COLOR_ACCENT = colors.HexColor('#2E86AB')
 COLOR_GROC = colors.HexColor('#F4A923')
@@ -46,7 +45,7 @@ st.markdown("""
         margin: 0;
         margin-top: 4px;
     }
-    .avís {
+    .avis {
         background: #FFF8E1;
         border-left: 4px solid #F4A923;
         padding: 0.8rem 1rem;
@@ -56,18 +55,14 @@ st.markdown("""
         margin-bottom: 1rem;
     }
 </style>
-
 <div class="header-bar">
     <p class="header-title">⚡ ENERGYDATAGP</p>
     <p class="header-sub">Sistema de Generació d'Informes Tècnics de Producció Fotovoltaica</p>
 </div>
-
-<div class="avís">
-    ⚠️ <b>Avís important:</b> Els informes generats per aquesta eina tenen caràcter orientatiu i no substitueixen 
-    la signatura d'un tècnic col·legiat competent. Les dades de producció provenen de la base de dades PVGIS 
-    de la Comissió Europea i poden diferir de la producció real de la instal·lació. EnergyDataGP no es fa 
-    responsable de les decisions preses a partir d'aquest document sense la validació prèvia d'un professional 
-    habilitat. L'ús d'aquesta eina implica l'acceptació d'aquestes condicions.
+<div class="avis">
+    ⚠️ <b>Avís important:</b> Els informes generats per aquesta eina tenen caràcter orientatiu i no substitueixen
+    la signatura d'un tècnic col·legiat competent. Les dades provenen de PVGIS (Comissió Europea).
+    EnergyDataGP no es fa responsable de les decisions preses sense validació professional prèvia.
 </div>
 """, unsafe_allow_html=True)
 
@@ -100,42 +95,29 @@ with col3:
 
 st.markdown("---")
 
-# Avís legal complet al final de la pàgina
 with st.expander("📋 Avís legal i condicions d'ús"):
     st.markdown("""
     **AVÍS LEGAL — EnergyDataGP**
-    
+
     **1. Naturalesa de l'eina**
-    EnergyDataGP és una eina de suport tècnic per a la generació d'informes orientatius de producció 
-    fotovoltaica. Els documents generats no tenen valor jurídic ni tècnic oficial per si mateixos i 
-    no substitueixen en cap cas la memòria tècnica signada per un enginyer o enginyer tècnic 
-    col·legiat competent.
-    
+    EnergyDataGP és una eina de suport tècnic per a la generació d'informes orientatius de producció
+    fotovoltaica. Els documents generats no tenen valor jurídic ni tècnic oficial per si mateixos i
+    no substitueixen en cap cas la memòria tècnica signada per un enginyer col·legiat competent.
+
     **2. Font de les dades meteorològiques**
-    Les dades de radiació solar i producció estimada provenen exclusivament de la base de dades 
-    PVGIS (Photovoltaic Geographical Information System), desenvolupada per la Comissió Europea 
-    — Joint Research Centre (JRC). Aquestes dades es basen en sèries meteorològiques històriques 
-    i poden no reflectir les condicions reals futures de la instal·lació.
-    
+    Les dades provenen exclusivament de PVGIS (Photovoltaic Geographical Information System),
+    desenvolupada per la Comissió Europea — Joint Research Centre (JRC).
+
     **3. Limitació de responsabilitat**
-    EnergyDataGP no assumeix cap responsabilitat pels errors, omissions o inexactituds continguts 
-    en els informes generats, ni per les decisions tècniques, econòmiques o legals preses a partir 
-    d'aquests documents. L'usuari és l'únic responsable de verificar i validar la informació amb 
-    un professional habilitat abans de qualsevol ús oficial.
-    
-    **4. Drets de propietat intel·lectual**
-    Els algorismes, el codi i el disseny d'aquesta eina són propietat de EnergyDataGP. 
-    Les dades PVGIS són propietat de la Comissió Europea i s'utilitzen d'acord amb 
-    la seva política d'accés obert.
-    
-    **5. Acceptació de les condicions**
-    L'ús d'aquesta eina implica l'acceptació expressa de totes les condicions descrites 
-    en aquest avís legal.
+    EnergyDataGP no assumeix cap responsabilitat pels errors o inexactituds dels informes generats.
+    L'usuari és l'únic responsable de verificar la informació amb un professional habilitat.
+
+    **4. Acceptació de les condicions**
+    L'ús d'aquesta eina implica l'acceptació expressa de totes les condicions descrites.
     """)
 
 if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=True):
 
-    # Validació mínima
     if not nom_projecte or not nom_tecnic:
         st.error("⚠️ Cal omplir com a mínim la denominació del projecte i el tècnic responsable.")
         st.stop()
@@ -160,7 +142,6 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
     co2_estalviat = produccio_anual * factor_co2
 
     with st.spinner("Generant gràfiques tècniques..."):
-
         CP = '#1A3A5C'
         CA = '#2E86AB'
 
@@ -232,8 +213,38 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
     c3.metric("Retorn de la inversió", f"{anys_retorn:.1f} anys")
     c4.metric("CO₂ estalviat/any", f"{co2_estalviat:,.0f} kg")
 
-    with st.spinner("Composant el document PDF..."):
+    with st.spinner("Generant conclusions amb IA..."):
+        try:
+            from groq import Groq
+            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+            prompt = f"""Ets un enginyer expert en energia solar fotovoltaica.
+Redacta les conclusions tècniques d'un informe professional en català,
+formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
+- Projecte: {nom_projecte}
+- Ubicació: {lat}°N, {lon}°E
+- Potència instal·lada: {potencia} kWp
+- Producció anual estimada: {produccio_anual:,.0f} kWh
+- Millor mes: {produccio_mensual.idxmax().strftime('%B')} ({produccio_mensual.max():,.0f} kWh)
+- Pitjor mes: {produccio_mensual.idxmin().strftime('%B')} ({produccio_mensual.min():,.0f} kWh)
+- Cost instal·lació: {cost_instalacio:,.0f} €
+- Estalvi econòmic anual: {estalvi_anual:,.0f} €
+- Retorn de la inversió: {anys_retorn:.1f} anys
+- CO₂ estalviat: {co2_estalviat:,.0f} kg/any
+No incloguis títols ni encapçalaments. Redacta directament el text de conclusions."""
+            resposta = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama3-8b-8192",
+            )
+            text_conclusions = resposta.choices[0].message.content
+        except Exception as e:
+            text_conclusions = (
+                f"La instal·lació fotovoltaica {nom_projecte} presenta una producció anual estimada de "
+                f"{produccio_anual:,.0f} kWh, un estalvi econòmic de {estalvi_anual:,.0f} €/any i un "
+                f"retorn de la inversió en {anys_retorn:.1f} anys. La instal·lació contribuirà a la "
+                f"reducció d'emissions de CO₂ en {co2_estalviat:,.0f} kg per any."
+            )
 
+    with st.spinner("Composant el document PDF..."):
         doc = SimpleDocTemplate(
             "informe_energydatagp.pdf",
             pagesize=A4,
@@ -259,16 +270,14 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         estil_avis = ParagraphStyle('avis',
             fontSize=8, fontName='Helvetica',
             textColor=colors.grey, leading=12,
-            borderColor=COLOR_GROC, borderWidth=0.5,
-            borderPad=6, spaceAfter=8)
+            spaceAfter=8)
 
         elements = []
 
-        # CAPÇALERA
         elements.append(HRFlowable(width="100%", thickness=4,
                                    color=COLOR_PRINCIPAL, spaceAfter=8))
         cap_data = [[
-            Paragraph('<b><font size=16>⚡ ENERGYDATAGP</font></b><br/>'
+            Paragraph('<b><font size=14>⚡ ENERGYDATAGP</font></b><br/>'
                      '<font size=8 color=grey>Solucions d\'Anàlisi de Dades Energètiques</font>',
                      ParagraphStyle('cap', fontSize=9, fontName='Helvetica-Bold',
                                    textColor=COLOR_PRINCIPAL)),
@@ -291,7 +300,6 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         elements.append(HRFlowable(width="100%", thickness=2,
                                    color=COLOR_GROC, spaceAfter=12))
 
-        # SECCIÓ 1 — IDENTIFICACIÓ
         elements.append(Paragraph("1. IDENTIFICACIÓ DEL PROJECTE", estil_seccio))
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=6))
@@ -315,7 +323,6 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         elements.append(taula_id)
         elements.append(Spacer(1, 0.4*cm))
 
-        # SECCIÓ 2 — PARÀMETRES TÈCNICS
         elements.append(Paragraph("2. PARÀMETRES TÈCNICS DE LA INSTAL·LACIÓ", estil_seccio))
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=6))
@@ -323,7 +330,7 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
             ['Paràmetre', 'Valor', 'Unitat', 'Observacions'],
             ['Potència pic instal·lada', f'{potencia}', 'kWp', 'Condicions estàndard (STC)'],
             ['Pèrdues del sistema', f'{perdues}', '%', 'Cablejat, inversor, brutícia, temperatura'],
-            ['Producció anual estimada', f'{produccio_anual:,.0f}', 'kWh/any', f'Any meteorològic de referència: {any_ref}'],
+            ['Producció anual estimada', f'{produccio_anual:,.0f}', 'kWh/any', f'Any de referència: {any_ref}'],
             ['Mes de màxima producció', produccio_mensual.idxmax().strftime('%B'), f'{produccio_mensual.max():,.0f} kWh', 'Pic de producció estival'],
             ['Mes de mínima producció', produccio_mensual.idxmin().strftime('%B'), f'{produccio_mensual.min():,.0f} kWh', 'Mínim de producció hivernal'],
             ['Hores equivalents de sol', f'{produccio_anual/potencia:,.0f}', 'HES/any', 'Hores a potència nominal'],
@@ -342,33 +349,29 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         elements.append(taula_tec)
         elements.append(Spacer(1, 0.4*cm))
 
-        # SECCIÓ 3 — PRODUCCIÓ MENSUAL
         elements.append(Paragraph("3. ANÀLISI DE LA PRODUCCIÓ ENERGÈTICA MENSUAL", estil_seccio))
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=6))
         elements.append(Image('g1_mensual.png', width=16*cm, height=6*cm))
         elements.append(Paragraph(
             f"La instal·lació fotovoltaica objecte d'aquest informe presenta una producció anual estimada de "
-            f"<b>{produccio_anual:,.0f} kWh</b>, d'acord amb les dades meteorològiques de l'any de referència {any_ref} "
-            f"facilitades per la base de dades PVGIS de la Comissió Europea. El mes de màxima producció correspon a "
+            f"<b>{produccio_anual:,.0f} kWh</b>, d'acord amb les dades meteorològiques de l'any {any_ref} "
+            f"de PVGIS. El mes de màxima producció correspon a "
             f"<b>{produccio_mensual.idxmax().strftime('%B')}</b> amb <b>{produccio_mensual.max():,.0f} kWh</b>, "
             f"mentre que el mes de mínima producció és <b>{produccio_mensual.idxmin().strftime('%B')}</b> "
             f"amb <b>{produccio_mensual.min():,.0f} kWh</b>.", estil_normal))
         elements.append(Spacer(1, 0.3*cm))
 
-        # SECCIÓ 4 — CORBA HORÀRIA
         elements.append(Paragraph("4. CORBA DE GENERACIÓ HORÀRIA", estil_seccio))
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=6))
         elements.append(Image('g2_corbes.png', width=16*cm, height=6*cm))
         elements.append(Paragraph(
-            f"La figura anterior mostra la corba de generació horària per als dies de solstici d'estiu "
-            f"(21 de juny) i solstici d'hivern (21 de desembre). La potència màxima assolida durant el "
-            f"solstici d'estiu és de <b>{dia_estiu.max():.1f} kW</b>, mentre que durant el solstici "
-            f"d'hivern és de <b>{dia_hivern.max():.1f} kW</b>.", estil_normal))
+            f"La figura anterior mostra la corba de generació horària per als solsticis d'estiu i d'hivern. "
+            f"La potència màxima durant el solstici d'estiu és de <b>{dia_estiu.max():.1f} kW</b>, "
+            f"mentre que durant el solstici d'hivern és de <b>{dia_hivern.max():.1f} kW</b>.", estil_normal))
         elements.append(Spacer(1, 0.3*cm))
 
-        # SECCIÓ 5 — ANÀLISI ECONÒMICA
         elements.append(Paragraph("5. ANÀLISI ECONÒMICA I RETORN DE LA INVERSIÓ", estil_seccio))
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=6))
@@ -396,67 +399,40 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         elements.append(Image('g3_roi.png', width=16*cm, height=5.5*cm))
         elements.append(Spacer(1, 0.3*cm))
 
-        # SECCIÓ 6 — CONCLUSIONS
-           # SECCIÓ 6 — CONCLUSIONS AMB IA
         elements.append(Paragraph("6. CONCLUSIONS", estil_seccio))
         elements.append(HRFlowable(width="100%", thickness=0.5,
-                               color=COLOR_GRIS, spaceAfter=6))
+                                   color=COLOR_GRIS, spaceAfter=6))
+        elements.append(Paragraph(text_conclusions, estil_normal))
+        elements.append(Spacer(1, 0.8*cm))
 
-    # Genera el text amb Groq IA
-        try:
-            from groq import Groq
-                import os
+        sig_data = [
+            [Paragraph('El/La tècnic/a responsable', estil_normal),
+             Paragraph('Conforme el/la promotor/a', estil_normal)],
+            [Paragraph(f'<br/><br/><br/>Nom: {nom_tecnic}<br/>'
+                      f'Núm. col·legiació: {num_collegio if num_collegio else "—"}<br/>'
+                      f'Data: {datetime.now().strftime("%d/%m/%Y")}', estil_normal),
+             Paragraph('<br/><br/><br/>Nom:<br/>DNI/NIF:<br/>Data:', estil_normal)],
+        ]
+        taula_sig = Table(sig_data, colWidths=[8.5*cm, 8.5*cm])
+        taula_sig.setStyle(TableStyle([
+            ('BOX', (0,0), (0,-1), 0.5, COLOR_GRIS),
+            ('BOX', (1,0), (1,-1), 0.5, COLOR_GRIS),
+            ('PADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(taula_sig)
+        elements.append(Spacer(1, 0.5*cm))
 
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-
-            prompt = f"""Ets un enginyer expert en energia solar fotovoltaica. 
-        Redacta les conclusions tècniques d'un informe professional en català, 
-        formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
-
-        - Projecte: {nom_projecte}
-        - Ubicació: {lat}°N, {lon}°E
-        - Potència instal·lada: {potencia} kWp
-        - Producció anual estimada: {produccio_anual:,.0f} kWh
-        - Millor mes: {produccio_mensual.idxmax().strftime('%B')} ({produccio_mensual.max():,.0f} kWh)
-        - Pitjor mes: {produccio_mensual.idxmin().strftime('%B')} ({produccio_mensual.min():,.0f} kWh)
-        - Cost instal·lació: {cost_instalacio:,.0f} €
-        - Estalvi econòmic anual: {estalvi_anual:,.0f} €
-        - Retorn de la inversió: {anys_retorn:.1f} anys
-        - CO₂ estalviat: {co2_estalviat:,.0f} kg/any
-
-        No incloguis títols ni encapçalaments. Redacta directament el text de conclusions."""
-
-            resposta = client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model="llama3-8b-8192",
-            )
-            text_conclusions = resposta.choices[0].message.content
-
-        except Exception as e:
-            text_conclusions = (
-                f"La instal·lació fotovoltaica {nom_projecte} presenta una producció anual estimada de "
-                f"{produccio_anual:,.0f} kWh, un estalvi econòmic de {estalvi_anual:,.0f} €/any i un "
-                f"retorn de la inversió en {anys_retorn:.1f} anys. La instal·lació contribuirà a la "
-                f"reducció d'emissions de CO₂ en {co2_estalviat:,.0f} kg per any."
-        )
-
-elements.append(Paragraph(text_conclusions, estil_normal))
-       
-        # AVÍS LEGAL AL PDF
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=4))
         elements.append(Paragraph(
-            "<b>AVÍS LEGAL:</b> Aquest document ha estat generat amb l'eina EnergyDataGP amb finalitat "
-            "orientativa. Les dades de producció provenen de PVGIS © Comissió Europea. Aquest informe "
-            "no substitueix la memòria tècnica oficial signada per un tècnic col·legiat competent. "
-            "EnergyDataGP no es fa responsable de les decisions preses a partir d'aquest document "
-            "sense validació professional prèvia.", estil_avis))
-
+            "<b>AVÍS LEGAL:</b> Document generat amb EnergyDataGP amb finalitat orientativa. "
+            "Dades de producció: PVGIS © Comissió Europea. No substitueix la memòria tècnica "
+            "oficial signada per un tècnic col·legiat competent.", estil_avis))
         elements.append(HRFlowable(width="100%", thickness=2,
                                    color=COLOR_PRINCIPAL, spaceAfter=4))
         elements.append(Paragraph(
             f"EnergyDataGP · Informe generat el {datetime.now().strftime('%d/%m/%Y a les %H:%M')} · "
-            f"Dades meteorològiques: PVGIS © Comissió Europea · www.energydatagp.com",
+            f"Dades: PVGIS © Comissió Europea · www.energydatagp.com",
             estil_peu))
 
         doc.build(elements)
