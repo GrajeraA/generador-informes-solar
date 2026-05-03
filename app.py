@@ -397,36 +397,51 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         elements.append(Spacer(1, 0.3*cm))
 
         # SECCIÓ 6 — CONCLUSIONS
-        elements.append(Paragraph("6. CONCLUSIONS", estil_seccio))
-        elements.append(HRFlowable(width="100%", thickness=0.5,
-                                   color=COLOR_GRIS, spaceAfter=6))
-        elements.append(Paragraph(
-            f"D'acord amb l'anàlisi realitzada, la instal·lació fotovoltaica <b>{nom_projecte}</b> "
-            f"presenta una producció anual estimada de <b>{produccio_anual:,.0f} kWh</b>, un estalvi "
-            f"econòmic de <b>{estalvi_anual:,.0f} €/any</b> i un retorn de la inversió en "
-            f"<b>{anys_retorn:.1f} anys</b>. La instal·lació contribuirà a la reducció d'emissions "
-            f"de gasos d'efecte hivernacle en <b>{co2_estalviat:,.0f} kg de CO₂ per any</b>.",
-            estil_normal))
-        elements.append(Spacer(1, 0.8*cm))
+       # SECCIÓ 6 — CONCLUSIONS AMB IA
+elements.append(Paragraph("6. CONCLUSIONS", estil_seccio))
+elements.append(HRFlowable(width="100%", thickness=0.5,
+                           color=COLOR_GRIS, spaceAfter=6))
 
-        # SIGNATURA
-        sig_data = [
-            [Paragraph('El/La tècnic/a responsable', estil_normal),
-             Paragraph('Conforme el/la promotor/a', estil_normal)],
-            [Paragraph(f'<br/><br/><br/>Nom: {nom_tecnic}<br/>'
-                      f'Núm. col·legiació: {num_collegio if num_collegio else "—"}<br/>'
-                      f'Data: {datetime.now().strftime("%d/%m/%Y")}', estil_normal),
-             Paragraph('<br/><br/><br/>Nom:<br/>DNI/NIF:<br/>Data:', estil_normal)],
-        ]
-        taula_sig = Table(sig_data, colWidths=[8.5*cm, 8.5*cm])
-        taula_sig.setStyle(TableStyle([
-            ('BOX', (0,0), (0,-1), 0.5, COLOR_GRIS),
-            ('BOX', (1,0), (1,-1), 0.5, COLOR_GRIS),
-            ('PADDING', (0,0), (-1,-1), 8),
-        ]))
-        elements.append(taula_sig)
-        elements.append(Spacer(1, 0.5*cm))
+# Genera el text amb Groq IA
+try:
+    from groq import Groq
+    import os
 
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+    prompt = f"""Ets un enginyer expert en energia solar fotovoltaica. 
+Redacta les conclusions tècniques d'un informe professional en català, 
+formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
+
+- Projecte: {nom_projecte}
+- Ubicació: {lat}°N, {lon}°E
+- Potència instal·lada: {potencia} kWp
+- Producció anual estimada: {produccio_anual:,.0f} kWh
+- Millor mes: {produccio_mensual.idxmax().strftime('%B')} ({produccio_mensual.max():,.0f} kWh)
+- Pitjor mes: {produccio_mensual.idxmin().strftime('%B')} ({produccio_mensual.min():,.0f} kWh)
+- Cost instal·lació: {cost_instalacio:,.0f} €
+- Estalvi econòmic anual: {estalvi_anual:,.0f} €
+- Retorn de la inversió: {anys_retorn:.1f} anys
+- CO₂ estalviat: {co2_estalviat:,.0f} kg/any
+
+No incloguis títols ni encapçalaments. Redacta directament el text de conclusions."""
+
+    resposta = client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        model="llama3-8b-8192",
+    )
+    text_conclusions = resposta.choices[0].message.content
+
+except Exception as e:
+    text_conclusions = (
+        f"La instal·lació fotovoltaica {nom_projecte} presenta una producció anual estimada de "
+        f"{produccio_anual:,.0f} kWh, un estalvi econòmic de {estalvi_anual:,.0f} €/any i un "
+        f"retorn de la inversió en {anys_retorn:.1f} anys. La instal·lació contribuirà a la "
+        f"reducció d'emissions de CO₂ en {co2_estalviat:,.0f} kg per any."
+    )
+
+elements.append(Paragraph(text_conclusions, estil_normal))
+       
         # AVÍS LEGAL AL PDF
         elements.append(HRFlowable(width="100%", thickness=0.5,
                                    color=COLOR_GRIS, spaceAfter=4))
