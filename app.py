@@ -397,48 +397,48 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         elements.append(Spacer(1, 0.3*cm))
 
         # SECCIÓ 6 — CONCLUSIONS
-       # SECCIÓ 6 — CONCLUSIONS AMB IA
-elements.append(Paragraph("6. CONCLUSIONS", estil_seccio))
-elements.append(HRFlowable(width="100%", thickness=0.5,
-                           color=COLOR_GRIS, spaceAfter=6))
+           # SECCIÓ 6 — CONCLUSIONS AMB IA
+        elements.append(Paragraph("6. CONCLUSIONS", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                               color=COLOR_GRIS, spaceAfter=6))
 
-# Genera el text amb Groq IA
-try:
-    from groq import Groq
-    import os
+    # Genera el text amb Groq IA
+        try:
+            from groq import Groq
+                import os
 
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-    prompt = f"""Ets un enginyer expert en energia solar fotovoltaica. 
-Redacta les conclusions tècniques d'un informe professional en català, 
-formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
+            prompt = f"""Ets un enginyer expert en energia solar fotovoltaica. 
+        Redacta les conclusions tècniques d'un informe professional en català, 
+        formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
 
-- Projecte: {nom_projecte}
-- Ubicació: {lat}°N, {lon}°E
-- Potència instal·lada: {potencia} kWp
-- Producció anual estimada: {produccio_anual:,.0f} kWh
-- Millor mes: {produccio_mensual.idxmax().strftime('%B')} ({produccio_mensual.max():,.0f} kWh)
-- Pitjor mes: {produccio_mensual.idxmin().strftime('%B')} ({produccio_mensual.min():,.0f} kWh)
-- Cost instal·lació: {cost_instalacio:,.0f} €
-- Estalvi econòmic anual: {estalvi_anual:,.0f} €
-- Retorn de la inversió: {anys_retorn:.1f} anys
-- CO₂ estalviat: {co2_estalviat:,.0f} kg/any
+        - Projecte: {nom_projecte}
+        - Ubicació: {lat}°N, {lon}°E
+        - Potència instal·lada: {potencia} kWp
+        - Producció anual estimada: {produccio_anual:,.0f} kWh
+        - Millor mes: {produccio_mensual.idxmax().strftime('%B')} ({produccio_mensual.max():,.0f} kWh)
+        - Pitjor mes: {produccio_mensual.idxmin().strftime('%B')} ({produccio_mensual.min():,.0f} kWh)
+        - Cost instal·lació: {cost_instalacio:,.0f} €
+        - Estalvi econòmic anual: {estalvi_anual:,.0f} €
+        - Retorn de la inversió: {anys_retorn:.1f} anys
+        - CO₂ estalviat: {co2_estalviat:,.0f} kg/any
 
-No incloguis títols ni encapçalaments. Redacta directament el text de conclusions."""
+        No incloguis títols ni encapçalaments. Redacta directament el text de conclusions."""
 
-    resposta = client.chat.completions.create(
-        messages=[{"role": "user", "content": prompt}],
-        model="llama3-8b-8192",
-    )
-    text_conclusions = resposta.choices[0].message.content
+            resposta = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama3-8b-8192",
+            )
+            text_conclusions = resposta.choices[0].message.content
 
-except Exception as e:
-    text_conclusions = (
-        f"La instal·lació fotovoltaica {nom_projecte} presenta una producció anual estimada de "
-        f"{produccio_anual:,.0f} kWh, un estalvi econòmic de {estalvi_anual:,.0f} €/any i un "
-        f"retorn de la inversió en {anys_retorn:.1f} anys. La instal·lació contribuirà a la "
-        f"reducció d'emissions de CO₂ en {co2_estalviat:,.0f} kg per any."
-    )
+        except Exception as e:
+            text_conclusions = (
+                f"La instal·lació fotovoltaica {nom_projecte} presenta una producció anual estimada de "
+                f"{produccio_anual:,.0f} kWh, un estalvi econòmic de {estalvi_anual:,.0f} €/any i un "
+                f"retorn de la inversió en {anys_retorn:.1f} anys. La instal·lació contribuirà a la "
+                f"reducció d'emissions de CO₂ en {co2_estalviat:,.0f} kg per any."
+        )
 
 elements.append(Paragraph(text_conclusions, estil_normal))
        
