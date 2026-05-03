@@ -1,6 +1,7 @@
 streamlit
 requests
 pandas
-matplotlib==3.7.1
+matplotlib
 reportlab
 numpy
+pillow
