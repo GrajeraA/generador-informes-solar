@@ -1,5 +1,6 @@
 streamlit
 requests
 pandas
-matplotlib
+matplotlib==3.7.1
 reportlab
+numpy
