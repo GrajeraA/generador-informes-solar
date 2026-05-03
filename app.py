@@ -2,36 +2,83 @@ import streamlit as st
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.pdfbase import pdfmetrics
 import io
 import os
+from datetime import datetime
 
-st.set_page_config(page_title="Generador d'Informes Solars", page_icon="☀️")
+# Colors oficials Generalitat de Catalunya
+COLOR_VERMELL = colors.HexColor('#C1000C')
+COLOR_GROC = colors.HexColor('#FBBD08')
+COLOR_BLAU_FOSC = colors.HexColor('#1A3A5C')
+COLOR_GRIS_CLAR = colors.HexColor('#F5F5F5')
+COLOR_GRIS = colors.HexColor('#CCCCCC')
+COLOR_NEGRE = colors.HexColor('#1A1A1A')
 
-st.title("☀️ Generador d'Informes de Producció Solar")
-st.markdown("Introdueix les dades de la planta i genera l'informe automàticament.")
+st.set_page_config(page_title="Generador d'Informes Tècnics FV", page_icon="🏛️", layout="wide")
 
-# FORMULARI
-col1, col2 = st.columns(2)
+st.markdown("""
+<style>
+    .header-bar {
+        background: linear-gradient(90deg, #C1000C 0%, #1A3A5C 100%);
+        padding: 1rem 2rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    .header-title {
+        color: white;
+        font-size: 1.4rem;
+        font-weight: bold;
+        margin: 0;
+    }
+    .header-sub {
+        color: #FFD700;
+        font-size: 0.9rem;
+        margin: 0;
+    }
+</style>
+<div class="header-bar">
+    <p class="header-title">🏛️ GENERALITAT DE CATALUNYA — DEPARTAMENT D'ACCIÓ CLIMÀTICA</p>
+    <p class="header-sub">Sistema de Generació d'Informes Tècnics de Producció Fotovoltaica</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+col1, col2, col3 = st.columns(3)
 with col1:
-    nom_projecte = st.text_input("Nom del projecte", "Planta FV Mataró")
-    nom_client = st.text_input("Client", "Client Example SL")
-    lat = st.number_input("Latitud", value=41.54, format="%.4f")
-    lon = st.number_input("Longitud", value=2.45, format="%.4f")
+    st.markdown("**1. DADES DEL PROJECTE**")
+    nom_projecte = st.text_input("Denominació del projecte", "Instal·lació FV — Edifici Municipal")
+    num_expedient = st.text_input("Número d'expedient", "EXP-2026-FV-001")
+    nom_promotor = st.text_input("Promotor / Titular", "Ajuntament de Mataró")
+    nom_tecnic = st.text_input("Tècnic responsable", "Enginyer/a Col·legiat/da")
 
 with col2:
-    potencia = st.number_input("Potència (kWp)", value=100)
-    perdues = st.number_input("Pèrdues sistema (%)", value=14)
-    any_ref = st.selectbox("Any de referència", [2020, 2019, 2018, 2017])
+    st.markdown("**2. PARÀMETRES TÈCNICS**")
+    lat = st.number_input("Latitud (°N)", value=41.54, format="%.4f")
+    lon = st.number_input("Longitud (°E)", value=2.45, format="%.4f")
+    potencia = st.number_input("Potència pic instal·lada (kWp)", value=100)
+    perdues = st.number_input("Pèrdues del sistema (%)", value=14)
 
-if st.button("🔄 Generar Informe", type="primary"):
-    with st.spinner("Descarregant dades de PVGIS..."):
-        
-        # Descarrega dades
+with col3:
+    st.markdown("**3. PARÀMETRES ECONÒMICS**")
+    preu_kwh = st.number_input("Preu energia (€/kWh)", value=0.18, format="%.3f")
+    cost_instalacio = st.number_input("Cost instal·lació (€)", value=85000)
+    any_ref = st.selectbox("Any de referència meteorològic", [2020, 2019, 2018, 2017])
+    factor_co2 = st.number_input("Factor CO₂ (kg CO₂/kWh)", value=0.25, format="%.3f")
+
+st.markdown("---")
+
+if st.button("🏛️ Generar Informe Tècnic Oficial", type="primary", use_container_width=True):
+
+    with st.spinner("Connectant amb la base de dades PVGIS (Comissió Europea)..."):
         url = "https://re.jrc.ec.europa.eu/api/v5_2/seriescalc"
         params = {
             "lat": lat, "lon": lon,
@@ -44,96 +91,316 @@ if st.button("🔄 Generar Informe", type="primary"):
         df['time'] = pd.to_datetime(df['time'], format='%Y%m%d:%H%M')
         df.set_index('time', inplace=True)
         produccio_mensual = df['P'].resample('ME').sum() / 1000
+        produccio_anual = produccio_mensual.sum()
 
-    with st.spinner("Generant gràfiques..."):
+    # Càlculs econòmics
+    estalvi_anual = produccio_anual * preu_kwh
+    anys_retorn = cost_instalacio / estalvi_anual
+    co2_estalviat = produccio_anual * factor_co2
 
-        # Gràfica mensual
-        fig1, ax1 = plt.subplots(figsize=(10, 4))
-        ax1.bar(range(12), produccio_mensual.values, color='#378ADD', alpha=0.8)
+    with st.spinner("Generant gràfiques tècniques..."):
+
+        # Paleta oficial
+        COLOR_PRINCIPAL = '#1A3A5C'
+        COLOR_ACCENT = '#C1000C'
+
+        # Gràfica 1 — producció mensual
+        fig1, ax1 = plt.subplots(figsize=(12, 4))
+        bars = ax1.bar(range(12), produccio_mensual.values,
+                      color=COLOR_PRINCIPAL, alpha=0.85, width=0.6)
         ax1.set_xticks(range(12))
-        ax1.set_xticklabels(['Gen','Feb','Mar','Abr','Mai','Jun','Jul','Ago','Set','Oct','Nov','Des'])
-        ax1.set_title('Producció mensual (kWh)')
-        ax1.set_ylabel('kWh')
+        ax1.set_xticklabels(['Gen','Feb','Mar','Abr','Mai','Jun',
+                             'Jul','Ago','Set','Oct','Nov','Des'], fontsize=10)
+        ax1.set_ylabel('Energia produïda (kWh)', fontsize=10)
+        ax1.set_title(f'Figura 1. Producció energètica mensual — {nom_projecte}',
+                     fontsize=11, fontweight='bold', color=COLOR_PRINCIPAL)
+        ax1.axhline(produccio_mensual.mean(), color=COLOR_ACCENT,
+                   linestyle='--', linewidth=1.5, label='Mitjana mensual')
         for i, val in enumerate(produccio_mensual.values):
-            ax1.text(i, val + 200, f'{val:.0f}', ha='center', fontsize=8)
+            ax1.text(i, val + 150, f'{val:.0f}', ha='center', fontsize=8, color=COLOR_PRINCIPAL)
+        ax1.legend(fontsize=9)
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+        ax1.grid(axis='y', alpha=0.3)
         plt.tight_layout()
-        plt.savefig('grafica_mensual.png', dpi=150, bbox_inches='tight')
+        plt.savefig('g1_mensual.png', dpi=180, bbox_inches='tight')
         plt.close()
 
-        # Gràfica corbes
+        # Gràfica 2 — corba diària
         dia_estiu = df.loc[f'{any_ref}-06-21', 'P'] / 1000
         dia_hivern = df.loc[f'{any_ref}-12-21', 'P'] / 1000
-        fig2, ax2 = plt.subplots(figsize=(10, 4))
-        ax2.plot(range(len(dia_estiu)), dia_estiu.values, color='#F59F27', linewidth=2, label='Estiu')
-        ax2.plot(range(len(dia_hivern)), dia_hivern.values, color='#378ADD', linewidth=2, label='Hivern')
-        ax2.set_title('Corba de producció diària')
-        ax2.set_ylabel('Potència (kW)')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        fig2, ax2 = plt.subplots(figsize=(12, 4))
+        ax2.plot(range(len(dia_estiu)), dia_estiu.values,
+                color=COLOR_ACCENT, linewidth=2.5, label='Solstici d\'estiu (21 juny)')
+        ax2.plot(range(len(dia_hivern)), dia_hivern.values,
+                color=COLOR_PRINCIPAL, linewidth=2.5, label='Solstici d\'hivern (21 desembre)')
+        ax2.fill_between(range(len(dia_estiu)), dia_estiu.values, alpha=0.1, color=COLOR_ACCENT)
+        ax2.fill_between(range(len(dia_hivern)), dia_hivern.values, alpha=0.1, color=COLOR_PRINCIPAL)
+        ax2.set_ylabel('Potència generada (kW)', fontsize=10)
+        ax2.set_title('Figura 2. Corba de generació horària — Comparativa estacional',
+                     fontsize=11, fontweight='bold', color=COLOR_PRINCIPAL)
+        ax2.legend(fontsize=9)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+        ax2.grid(alpha=0.3)
         plt.tight_layout()
-        plt.savefig('grafica_corbes.png', dpi=150, bbox_inches='tight')
+        plt.savefig('g2_corbes.png', dpi=180, bbox_inches='tight')
         plt.close()
 
-    # Mostra resultats a la web
-    st.success("✅ Dades carregades!")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Producció anual", f"{produccio_mensual.sum():.0f} kWh")
-    col2.metric("Millor mes", f"{produccio_mensual.max():.0f} kWh")
-    col3.metric("Pitjor mes", f"{produccio_mensual.min():.0f} kWh")
-    st.pyplot(fig1)
+        # Gràfica 3 — retorn inversió
+        anys = list(range(0, 26))
+        flux_acumulat = [-cost_instalacio + estalvi_anual * a for a in anys]
+        fig3, ax3 = plt.subplots(figsize=(12, 4))
+        colors_bars = [COLOR_ACCENT if v < 0 else '#2E7D32' for v in flux_acumulat]
+        ax3.bar(anys, flux_acumulat, color=colors_bars, alpha=0.8, width=0.7)
+        ax3.axhline(0, color='black', linewidth=1)
+        ax3.set_xlabel('Anys des de la posada en marxa', fontsize=10)
+        ax3.set_ylabel('Flux de caixa acumulat (€)', fontsize=10)
+        ax3.set_title('Figura 3. Anàlisi del retorn de la inversió (ROI)',
+                     fontsize=11, fontweight='bold', color=COLOR_PRINCIPAL)
+        ax3.spines['top'].set_visible(False)
+        ax3.spines['right'].set_visible(False)
+        ax3.grid(axis='y', alpha=0.3)
+        llegenda = [mpatches.Patch(color=COLOR_ACCENT, label='Període de retorn'),
+                   mpatches.Patch(color='#2E7D32', label='Benefici net')]
+        ax3.legend(handles=llegenda, fontsize=9)
+        plt.tight_layout()
+        plt.savefig('g3_roi.png', dpi=180, bbox_inches='tight')
+        plt.close()
 
-    with st.spinner("Generant PDF..."):
+    # Mostra resum a la web
+    st.success("✅ Informe generat correctament")
+    st.markdown("### Resum executiu")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Producció anual", f"{produccio_anual:,.0f} kWh")
+    c2.metric("Estalvi econòmic anual", f"{estalvi_anual:,.0f} €")
+    c3.metric("Retorn de la inversió", f"{anys_retorn:.1f} anys")
+    c4.metric("CO₂ estalviat/any", f"{co2_estalviat:,.0f} kg")
 
-        # Genera PDF
+    with st.spinner("Composant el document oficial..."):
+
         doc = SimpleDocTemplate(
-            "informe.pdf", pagesize=A4,
-            rightMargin=2*cm, leftMargin=2*cm,
-            topMargin=2*cm, bottomMargin=2*cm
+            "informe_oficial.pdf",
+            pagesize=A4,
+            rightMargin=2.5*cm,
+            leftMargin=2.5*cm,
+            topMargin=2*cm,
+            bottomMargin=2*cm
         )
+
         styles = getSampleStyleSheet()
+
+        # Estils personalitzats
+        estil_titol = ParagraphStyle('titol',
+            fontSize=16, fontName='Helvetica-Bold',
+            textColor=COLOR_BLAU_FOSC, alignment=TA_CENTER,
+            spaceAfter=4)
+
+        estil_subtitol = ParagraphStyle('subtitol',
+            fontSize=11, fontName='Helvetica',
+            textColor=COLOR_VERMELL, alignment=TA_CENTER,
+            spaceAfter=2)
+
+        estil_seccio = ParagraphStyle('seccio',
+            fontSize=11, fontName='Helvetica-Bold',
+            textColor=COLOR_BLAU_FOSC,
+            spaceBefore=12, spaceAfter=6,
+            borderPad=4)
+
+        estil_normal = ParagraphStyle('normal',
+            fontSize=9, fontName='Helvetica',
+            textColor=COLOR_NEGRE, leading=14,
+            spaceAfter=4)
+
+        estil_peu = ParagraphStyle('peu',
+            fontSize=7, fontName='Helvetica',
+            textColor=colors.grey, alignment=TA_CENTER)
+
         elements = []
 
-        elements.append(Paragraph(f"INFORME DE PRODUCCIÓ SOLAR", styles['Title']))
-        elements.append(Paragraph(f"{nom_projecte}", styles['Heading2']))
-        elements.append(Paragraph(f"Client: {nom_client} · Any: {any_ref} · Dades: PVGIS", styles['Normal']))
-        elements.append(Spacer(1, 0.5*cm))
+        # CAPÇALERA OFICIAL
+        elements.append(HRFlowable(width="100%", thickness=4,
+                                   color=COLOR_VERMELL, spaceAfter=8))
 
-        data_taula = [
-            ['Paràmetre', 'Valor'],
-            ['Ubicació', f'{lat}°N, {lon}°E'],
-            ['Potència instal·lada', f'{potencia} kWp'],
-            ['Pèrdues sistema', f'{perdues}%'],
-            ['Producció anual total', f'{produccio_mensual.sum():.0f} kWh'],
-            ['Millor mes', f'{produccio_mensual.idxmax().strftime("%B")} ({produccio_mensual.max():.0f} kWh)'],
-            ['Pitjor mes', f'{produccio_mensual.idxmin().strftime("%B")} ({produccio_mensual.min():.0f} kWh)'],
-            ['Hores de sol anuals', f'{(df["P"] > 0).sum()} h'],
+        cap_data = [[
+            Paragraph('<b>GENERALITAT DE CATALUNYA</b><br/>Departament d\'Acció Climàtica,<br/>Alimentació i Agenda Rural', 
+                     ParagraphStyle('cap', fontSize=9, fontName='Helvetica-Bold', textColor=COLOR_BLAU_FOSC)),
+            Paragraph('<b>INFORME TÈCNIC DE PRODUCCIÓ</b><br/>INSTAL·LACIÓ FOTOVOLTAICA', 
+                     ParagraphStyle('cap2', fontSize=12, fontName='Helvetica-Bold', 
+                                   textColor=COLOR_BLAU_FOSC, alignment=TA_CENTER)),
+            Paragraph(f'Expedient: <b>{num_expedient}</b><br/>Data: <b>{datetime.now().strftime("%d/%m/%Y")}</b><br/>Versió: 1.0', 
+                     ParagraphStyle('cap3', fontSize=9, fontName='Helvetica', 
+                                   textColor=COLOR_BLAU_FOSC, alignment=TA_RIGHT)),
+        ]]
+        taula_cap = Table(cap_data, colWidths=[5.5*cm, 8*cm, 4*cm])
+        taula_cap.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F0F4F8')),
+            ('PADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(taula_cap)
+        elements.append(HRFlowable(width="100%", thickness=2,
+                                   color=COLOR_GROC, spaceAfter=12))
+
+        # SECCIÓ 1 — IDENTIFICACIÓ
+        elements.append(Paragraph("1. IDENTIFICACIÓ DEL PROJECTE", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                                   color=COLOR_GRIS, spaceAfter=6))
+
+        dades_id = [
+            ['Denominació del projecte:', nom_projecte, 'Promotor / Titular:', nom_promotor],
+            ['Número d\'expedient:', num_expedient, 'Tècnic responsable:', nom_tecnic],
+            ['Ubicació (coordenades):', f'{lat}°N, {lon}°E', 'Any meteorològic ref.:', str(any_ref)],
         ]
-        taula = Table(data_taula, colWidths=[8*cm, 8*cm])
-        taula.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#378ADD')),
+        taula_id = Table(dades_id, colWidths=[4.5*cm, 6*cm, 4*cm, 4*cm])
+        taula_id.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+            ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('TEXTCOLOR', (0,0), (0,-1), COLOR_BLAU_FOSC),
+            ('TEXTCOLOR', (2,0), (2,-1), COLOR_BLAU_FOSC),
+            ('ROWBACKGROUNDS', (0,0), (-1,-1), [colors.HexColor('#F5F5F5'), colors.white]),
+            ('GRID', (0,0), (-1,-1), 0.3, COLOR_GRIS),
+            ('PADDING', (0,0), (-1,-1), 5),
+        ]))
+        elements.append(taula_id)
+        elements.append(Spacer(1, 0.4*cm))
+
+        # SECCIÓ 2 — PARÀMETRES TÈCNICS
+        elements.append(Paragraph("2. PARÀMETRES TÈCNICS DE LA INSTAL·LACIÓ", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                                   color=COLOR_GRIS, spaceAfter=6))
+
+        dades_tec = [
+            ['Paràmetre', 'Valor', 'Unitat', 'Observacions'],
+            ['Potència pic instal·lada', f'{potencia}', 'kWp', 'Condicions estàndard (STC)'],
+            ['Pèrdues del sistema', f'{perdues}', '%', 'Cablejat, inversor, brutícia, temp.'],
+            ['Producció anual estimada', f'{produccio_anual:,.0f}', 'kWh/any', f'Any meteorològic {any_ref}'],
+            ['Millor mes de producció', f'{produccio_mensual.idxmax().strftime("%B")}', f'{produccio_mensual.max():,.0f} kWh', 'Pic de producció estival'],
+            ['Pitjor mes de producció', f'{produccio_mensual.idxmin().strftime("%B")}', f'{produccio_mensual.min():,.0f} kWh', 'Mínim de producció hivernal'],
+            ['Hores equivalents de sol', f'{produccio_anual/potencia:,.0f}', 'HES/any', 'Hores a potència nominal'],
+        ]
+        taula_tec = Table(dades_tec, colWidths=[5.5*cm, 3*cm, 3*cm, 6*cm])
+        taula_tec.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), COLOR_BLAU_FOSC),
             ('TEXTCOLOR', (0,0), (-1,0), colors.white),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor('#F5F5F5'), colors.white]),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('PADDING', (0,0), (-1,-1), 6),
+            ('GRID', (0,0), (-1,-1), 0.3, COLOR_GRIS),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('ALIGN', (1,1), (2,-1), 'CENTER'),
         ]))
-        elements.append(taula)
-        elements.append(Spacer(1, 0.5*cm))
-        elements.append(Paragraph("Producció mensual", styles['Heading3']))
-        elements.append(Image('grafica_mensual.png', width=16*cm, height=6.5*cm))
+        elements.append(taula_tec)
+        elements.append(Spacer(1, 0.4*cm))
+
+        # SECCIÓ 3 — PRODUCCIÓ MENSUAL
+        elements.append(Paragraph("3. ANÀLISI DE LA PRODUCCIÓ ENERGÈTICA MENSUAL", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                                   color=COLOR_GRIS, spaceAfter=6))
+        elements.append(Image('g1_mensual.png', width=16*cm, height=6*cm))
+        elements.append(Paragraph(
+            f"La instal·lació fotovoltaica objecte d'aquest informe presenta una producció anual estimada de "
+            f"<b>{produccio_anual:,.0f} kWh</b>, d'acord amb les dades meteorològiques de l'any de referència {any_ref} "
+            f"facilitades per la base de dades PVGIS de la Comissió Europea. El mes de màxima producció correspon a "
+            f"<b>{produccio_mensual.idxmax().strftime('%B')}</b> amb <b>{produccio_mensual.max():,.0f} kWh</b>, "
+            f"mentre que el mes de mínima producció és <b>{produccio_mensual.idxmin().strftime('%B')}</b> "
+            f"amb <b>{produccio_mensual.min():,.0f} kWh</b>.",
+            estil_normal))
         elements.append(Spacer(1, 0.3*cm))
-        elements.append(Paragraph("Corba de producció diària", styles['Heading3']))
-        elements.append(Image('grafica_corbes.png', width=16*cm, height=6.5*cm))
+
+        # SECCIÓ 4 — CORBA HORÀRIA
+        elements.append(Paragraph("4. CORBA DE GENERACIÓ HORÀRIA", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                                   color=COLOR_GRIS, spaceAfter=6))
+        elements.append(Image('g2_corbes.png', width=16*cm, height=6*cm))
+        elements.append(Paragraph(
+            f"La figura anterior mostra la corba de generació horària per als dies de solstici d'estiu "
+            f"(21 de juny) i solstici d'hivern (21 de desembre), representatius de les condicions extremes "
+            f"d'operació de la instal·lació. La potència màxima assolida durant el solstici d'estiu és de "
+            f"<b>{dia_estiu.max():.1f} kW</b>, mentre que durant el solstici d'hivern és de "
+            f"<b>{dia_hivern.max():.1f} kW</b>.",
+            estil_normal))
+        elements.append(Spacer(1, 0.3*cm))
+
+        # SECCIÓ 5 — ANÀLISI ECONÒMICA
+        elements.append(Paragraph("5. ANÀLISI ECONÒMICA I RETORN DE LA INVERSIÓ", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                                   color=COLOR_GRIS, spaceAfter=6))
+
+        dades_eco = [
+            ['Concepte', 'Valor', 'Unitat'],
+            ['Cost total de la instal·lació', f'{cost_instalacio:,.0f}', '€'],
+            ['Preu de l\'energia considerada', f'{preu_kwh:.3f}', '€/kWh'],
+            ['Estalvi econòmic anual estimat', f'{estalvi_anual:,.0f}', '€/any'],
+            ['Període de retorn de la inversió', f'{anys_retorn:.1f}', 'anys'],
+            ['Emissions de CO₂ estalviades', f'{co2_estalviat:,.0f}', 'kg CO₂/any'],
+        ]
+        taula_eco = Table(dades_eco, colWidths=[9*cm, 4*cm, 4.5*cm])
+        taula_eco.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), COLOR_VERMELL),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor('#F5F5F5'), colors.white]),
+            ('GRID', (0,0), (-1,-1), 0.3, COLOR_GRIS),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('ALIGN', (1,1), (2,-1), 'CENTER'),
+        ]))
+        elements.append(taula_eco)
+        elements.append(Spacer(1, 0.3*cm))
+        elements.append(Image('g3_roi.png', width=16*cm, height=5.5*cm))
+        elements.append(Spacer(1, 0.3*cm))
+
+        # SECCIÓ 6 — CONCLUSIONS
+        elements.append(Paragraph("6. CONCLUSIONS I RECOMANACIONS", estil_seccio))
+        elements.append(HRFlowable(width="100%", thickness=0.5,
+                                   color=COLOR_GRIS, spaceAfter=6))
+        elements.append(Paragraph(
+            f"D'acord amb l'anàlisi realitzada, la instal·lació fotovoltaica <b>{nom_projecte}</b> "
+            f"presenta una viabilitat tècnica i econòmica adequada. La producció anual estimada de "
+            f"<b>{produccio_anual:,.0f} kWh</b> permet un estalvi econòmic de <b>{estalvi_anual:,.0f} €/any</b> "
+            f"i un retorn de la inversió en <b>{anys_retorn:.1f} anys</b>, dins dels paràmetres habituals "
+            f"per a instal·lacions d'aquesta tipologia a Catalunya. "
+            f"Addicionalment, la instal·lació contribuirà a la reducció d'emissions de gasos d'efecte "
+            f"hivernacle en <b>{co2_estalviat:,.0f} kg de CO₂ per any</b>, en línia amb els objectius "
+            f"del Pla Nacional Integrat d'Energia i Clima (PNIEC) 2021-2030.",
+            estil_normal))
         elements.append(Spacer(1, 0.5*cm))
-        elements.append(Paragraph(f"Informe generat automàticament amb Python · Dades PVGIS © Comissió Europea", styles['Normal']))
+
+        # SIGNATURA
+        sig_data = [[
+            Paragraph('El/La tècnic/a responsable', estil_normal),
+            Paragraph('Vist i plau', estil_normal),
+        ]]
+        sig_data.append([
+            Paragraph(f'<br/><br/><br/>Nom: {nom_tecnic}<br/>Data: {datetime.now().strftime("%d/%m/%Y")}', estil_normal),
+            Paragraph('<br/><br/><br/>Segell i signatura', estil_normal),
+        ])
+        taula_sig = Table(sig_data, colWidths=[8.5*cm, 8.5*cm])
+        taula_sig.setStyle(TableStyle([
+            ('BOX', (0,0), (0,-1), 0.5, COLOR_GRIS),
+            ('BOX', (1,0), (1,-1), 0.5, COLOR_GRIS),
+            ('PADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(taula_sig)
+        elements.append(Spacer(1, 0.5*cm))
+
+        # PEU DE PÀGINA
+        elements.append(HRFlowable(width="100%", thickness=2,
+                                   color=COLOR_VERMELL, spaceAfter=4))
+        elements.append(Paragraph(
+            f"Document generat automàticament · Dades meteorològiques: PVGIS © Comissió Europea · "
+            f"Generalitat de Catalunya · {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            estil_peu))
+
         doc.build(elements)
 
-    # Botó de descàrrega
-    with open("informe.pdf", "rb") as f:
+    with open("informe_oficial.pdf", "rb") as f:
         st.download_button(
-            label="📥 Descarregar PDF",
+            label="📥 Descarregar Informe Tècnic Oficial (PDF)",
             data=f,
-            file_name=f"informe_{nom_projecte.replace(' ','_')}.pdf",
-            mime="application/pdf"
+            file_name=f"informe_tecnic_{num_expedient}.pdf",
+            mime="application/pdf",
+            use_container_width=True
         )
