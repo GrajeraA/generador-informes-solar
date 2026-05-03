@@ -242,7 +242,7 @@ formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
 No incloguis títols ni encapçalaments. Redacta directament el text de conclusions."""
             resposta = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",
             )
             text_conclusions = resposta.choices[0].message.content
             st.success("✅ Conclusions generades per IA")
