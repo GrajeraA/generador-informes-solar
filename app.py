@@ -8,8 +8,15 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from datetime import datetime
+
+MESOS_CA = {
+    'January': 'Gener', 'February': 'Febrer', 'March': 'Març',
+    'April': 'Abril', 'May': 'Maig', 'June': 'Juny',
+    'July': 'Juliol', 'August': 'Agost', 'September': 'Setembre',
+    'October': 'Octubre', 'November': 'Novembre', 'December': 'Desembre'
+}
 
 COLOR_PRINCIPAL = colors.HexColor('#1A3A5C')
 COLOR_ACCENT = colors.HexColor('#2E86AB')
@@ -137,6 +144,8 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
         produccio_mensual = df['P'].resample('ME').sum() / 1000
         produccio_anual = produccio_mensual.sum()
 
+    mes_max = MESOS_CA[produccio_mensual.idxmax().strftime('%B')]
+    mes_min = MESOS_CA[produccio_mensual.idxmin().strftime('%B')]
     estalvi_anual = produccio_anual * preu_kwh
     anys_retorn = cost_instalacio / estalvi_anual
     co2_estalviat = produccio_anual * factor_co2
@@ -213,7 +222,7 @@ if st.button("⚡ Generar Informe Tècnic", type="primary", use_container_width=
     c3.metric("Retorn de la inversió", f"{anys_retorn:.1f} anys")
     c4.metric("CO₂ estalviat/any", f"{co2_estalviat:,.0f} kg")
 
-    with st.spinner("Generant conclusions amb IA..."):
+    with st.spinner("Generant conclusions amb IA (Groq)..."):
         try:
             from groq import Groq
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -224,8 +233,8 @@ formal i precís, de màxim 200 paraules, a partir d'aquestes dades reals:
 - Ubicació: {lat}°N, {lon}°E
 - Potència instal·lada: {potencia} kWp
 - Producció anual estimada: {produccio_anual:,.0f} kWh
-- Millor mes: {produccio_mensual.idxmax().strftime('%B')} ({produccio_mensual.max():,.0f} kWh)
-- Pitjor mes: {produccio_mensual.idxmin().strftime('%B')} ({produccio_mensual.min():,.0f} kWh)
+- Millor mes: {mes_max} ({produccio_mensual.max():,.0f} kWh)
+- Pitjor mes: {mes_min} ({produccio_mensual.min():,.0f} kWh)
 - Cost instal·lació: {cost_instalacio:,.0f} €
 - Estalvi econòmic anual: {estalvi_anual:,.0f} €
 - Retorn de la inversió: {anys_retorn:.1f} anys
@@ -236,7 +245,9 @@ No incloguis títols ni encapçalaments. Redacta directament el text de conclusi
                 model="llama3-8b-8192",
             )
             text_conclusions = resposta.choices[0].message.content
+            st.success("✅ Conclusions generades per IA")
         except Exception as e:
+            st.warning(f"⚠️ IA no disponible ({e}). S'usa text estàndard.")
             text_conclusions = (
                 f"La instal·lació fotovoltaica {nom_projecte} presenta una producció anual estimada de "
                 f"{produccio_anual:,.0f} kWh, un estalvi econòmic de {estalvi_anual:,.0f} €/any i un "
@@ -331,8 +342,8 @@ No incloguis títols ni encapçalaments. Redacta directament el text de conclusi
             ['Potència pic instal·lada', f'{potencia}', 'kWp', 'Condicions estàndard (STC)'],
             ['Pèrdues del sistema', f'{perdues}', '%', 'Cablejat, inversor, brutícia, temperatura'],
             ['Producció anual estimada', f'{produccio_anual:,.0f}', 'kWh/any', f'Any de referència: {any_ref}'],
-            ['Mes de màxima producció', produccio_mensual.idxmax().strftime('%B'), f'{produccio_mensual.max():,.0f} kWh', 'Pic de producció estival'],
-            ['Mes de mínima producció', produccio_mensual.idxmin().strftime('%B'), f'{produccio_mensual.min():,.0f} kWh', 'Mínim de producció hivernal'],
+            ['Mes de màxima producció', mes_max, f'{produccio_mensual.max():,.0f} kWh', 'Pic de producció estival'],
+            ['Mes de mínima producció', mes_min, f'{produccio_mensual.min():,.0f} kWh', 'Mínim de producció hivernal'],
             ['Hores equivalents de sol', f'{produccio_anual/potencia:,.0f}', 'HES/any', 'Hores a potència nominal'],
         ]
         taula_tec = Table(dades_tec, colWidths=[5.5*cm, 3*cm, 3*cm, 6*cm])
@@ -356,10 +367,9 @@ No incloguis títols ni encapçalaments. Redacta directament el text de conclusi
         elements.append(Paragraph(
             f"La instal·lació fotovoltaica objecte d'aquest informe presenta una producció anual estimada de "
             f"<b>{produccio_anual:,.0f} kWh</b>, d'acord amb les dades meteorològiques de l'any {any_ref} "
-            f"de PVGIS. El mes de màxima producció correspon a "
-            f"<b>{produccio_mensual.idxmax().strftime('%B')}</b> amb <b>{produccio_mensual.max():,.0f} kWh</b>, "
-            f"mentre que el mes de mínima producció és <b>{produccio_mensual.idxmin().strftime('%B')}</b> "
-            f"amb <b>{produccio_mensual.min():,.0f} kWh</b>.", estil_normal))
+            f"de PVGIS. El mes de màxima producció correspon a <b>{mes_max}</b> amb "
+            f"<b>{produccio_mensual.max():,.0f} kWh</b>, mentre que el mes de mínima producció és "
+            f"<b>{mes_min}</b> amb <b>{produccio_mensual.min():,.0f} kWh</b>.", estil_normal))
         elements.append(Spacer(1, 0.3*cm))
 
         elements.append(Paragraph("4. CORBA DE GENERACIÓ HORÀRIA", estil_seccio))
