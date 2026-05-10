@@ -6,3 +6,5 @@ reportlab
 numpy
 pillow
 groq
+python-docx
+openpyxl
